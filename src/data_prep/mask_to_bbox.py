@@ -1,63 +1,76 @@
 """
 mask_to_bbox.py
 
-Deriva bounding boxes a partir de máscaras de segmentação binárias (usado
-para CVC-ClinicDB e ETIS-Larib, que não trazem bbox pronta, só máscara).
+Converte máscara de segmentação -> bbox (pra CVC-ClinicDB e ETIS-Larib, que
+só vêm com máscara, sem bbox pronta). Pega o retângulo que envolve cada
+região branca da máscara (contorno externo).
 
-A ideia é pegar os contornos da máscara e usar o retângulo que envolve cada
-um deles (coordenadas extremas), igual descrito na seção 3.1 do artigo.
-
-Fica separado do resto da preparação do dataset de propósito: dá pra testar
-essa função sozinha em algumas imagens antes de rodar em cima do dataset
-inteiro (menos chance de perder tempo descobrindo erro de anotação só depois
-do dataset todo processado).
+Testa isolado antes de rodar em cima do dataset todo:
+    python mask_to_bbox.py --image foo.png --mask foo_mask.png --out preview.png
 """
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
 
-MIN_CONTOUR_AREA = 20  # ignora manchas minúsculas / ruído da máscara
+BINARY_THRESHOLD = 127
+MIN_CONTOUR_AREA_PX = 20  # abaixo disso é ruído de máscara, não pólipo
 
 
-def mask_to_bbox(mask_path: Path):
+@dataclass(frozen=True)
+class PixelBBox:
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+    img_w: int
+    img_h: int
+
+
+def load_binary_mask(mask_path: Path):
     mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
     if mask is None:
+        return None
+    _, binary = cv2.threshold(mask, BINARY_THRESHOLD, 255, cv2.THRESH_BINARY)
+    return binary
+
+
+def find_polyp_contours(binary_mask):
+    contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    return [c for c in contours if cv2.contourArea(c) >= MIN_CONTOUR_AREA_PX]
+
+
+def mask_to_bbox(mask_path: Path) -> list[PixelBBox]:
+    binary = load_binary_mask(mask_path)
+    if binary is None:
         return []
 
-    _, binary = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    h, w = mask.shape[:2]
+    img_h, img_w = binary.shape[:2]
     boxes = []
-    for cnt in contours:
-        if cv2.contourArea(cnt) < MIN_CONTOUR_AREA:
-            continue
-        x, y, bw, bh = cv2.boundingRect(cnt)
-        boxes.append((x, y, x + bw, y + bh, w, h))
+    for contour in find_polyp_contours(binary):
+        x, y, w, h = cv2.boundingRect(contour)
+        boxes.append(PixelBBox(x1=x, y1=y, x2=x + w, y2=y + h, img_w=img_w, img_h=img_h))
     return boxes
 
 
-def _preview(image_path: Path, mask_path: Path, out_path: Path):
-    """Desenha as caixas encontradas em cima da imagem original, só pra
-    conferir visualmente se a conversão faz sentido antes de confiar nela."""
+def _preview(image_path: Path, mask_path: Path, out_path: Path) -> None:
     img = cv2.imread(str(image_path))
     if img is None:
         raise SystemExit(f"não consegui abrir {image_path}")
 
-    for x1, y1, x2, y2, _, _ in mask_to_bbox(mask_path):
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    boxes = mask_to_bbox(mask_path)
+    for box in boxes:
+        cv2.rectangle(img, (box.x1, box.y1), (box.x2, box.y2), (0, 255, 0), 2)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(out_path), img)
-    print(f"salvo em {out_path}")
+    print(f"Preview salvo em {out_path} ({len(boxes)} caixa(s) encontrada(s))")
 
 
 if __name__ == "__main__":
-    # uso rápido pra testar em uma imagem antes de rodar em massa:
-    #   python mask_to_bbox.py --image caminho/img.png --mask caminho/mask.png --out preview.png
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Preview de bbox extraída de uma máscara")
     parser.add_argument("--image", required=True)
     parser.add_argument("--mask", required=True)
     parser.add_argument("--out", default="preview.png")
