@@ -1,0 +1,9 @@
+ultralytics>=8.3.0
+opencv-python-headless>=4.8.0
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+PyYAML>=6.0
+# TensorRT deve ser instalado separadamente, alinhado ao driver CUDA do
+# hardware-alvo de inferência (ex.: via NVIDIA pip index ou o pacote do JetPack/CUDA Toolkit).
+# tensorrt>=10.0.1

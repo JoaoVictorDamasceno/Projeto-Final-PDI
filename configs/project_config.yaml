@@ -1,0 +1,33 @@
+# Config de referência do projeto — reúne num lugar só os valores que hoje
+# estão espalhados como argumento de linha de comando em cada script.
+#
+# Por enquanto os scripts ainda não leem esse arquivo automaticamente (cada
+# um ainda usa argparse); é mais um "documento vivo" pra não perder o fio
+# quando alguém mudar um hiperparâmetro e esquecer de avisar o resto do
+# grupo. Se sobrar tempo, dá pra fazer os scripts carregarem daqui.
+
+fps_threshold: 60
+image_size: 640
+
+datasets:
+  hyperkvasir: data/raw/hyperkvasir
+  cvc_clinicdb: data/raw/cvc_clinicdb
+  etis_larib: data/raw/etis_larib
+  processed: data/processed
+
+train:
+  epochs: 100
+  batch_size: 16
+  optimizer: Adam
+  lr0: 0.001
+  cosine_scheduler: true
+  seed: 42
+  # reduzam aqui enquanto o pipeline ainda não estiver validado de ponta a ponta
+  models: [yolov8, yolov11]
+  variants: [m]
+
+results:
+  checkpoints: results/checkpoints
+  engines: results/engines
+  tables: results/tables
+  figures: results/figures
