@@ -34,6 +34,9 @@ data/processed/*
 data/samples/*
 !data/samples/.gitkeep
 
+data/*_check/
+data/*_test/
+
 results/checkpoints/*
 !results/checkpoints/.gitkeep
 results/engines/*
