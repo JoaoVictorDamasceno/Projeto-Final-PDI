@@ -19,8 +19,11 @@ realtime-polyp-detection-yolo/
 │
 ├── src/
 │   ├── data_prep/
-│   │   ├── mask_to_bbox.py       # conversão de máscara -> bbox (isolada, testável sozinha)
-│   │   └── consolidate_dataset.py # une os 3 datasets, gera os splits
+│   │   ├── mask_to_bbox.py            # conversão de máscara -> bbox (isolada, testável sozinha)
+│   │   ├── consolidate_dataset.py     # une os 3 datasets, gera os splits
+│   │   ├── audit_bboxes.py            # audita labels com mais de 1 bbox contra a fonte original
+│   │   ├── scan_degenerate_boxes.py   # distribuição de área das bboxes e detecção de degeneradas
+│   │   └── inspect_multibox.py        # inspeção visual de labels específicos
 │   │
 │   ├── training/
 │   │   └── train_yolo.py         # fine-tuning das variantes
@@ -40,6 +43,7 @@ realtime-polyp-detection-yolo/
 │       └── video_demo.py          # demonstração final em vídeo, ainda não implementado
 │
 ├── results/
+│   ├── audit/                      # logs da auditoria de bboxes
 │   ├── checkpoints/                # pesos .pt treinados
 │   ├── engines/                    # engines .engine (TensorRT FP16)
 │   ├── tables/                     # CSV de resultados
@@ -73,6 +77,31 @@ python src/data_prep/mask_to_bbox.py --image caminho/img.png --mask caminho/mask
 Abre o `preview.png` gerado e confere se a caixa desenhada realmente está
 em volta do pólipo.
 
+## Auditoria do dataset
+
+Depois de consolidar, é possível verificar a qualidade das bboxes geradas:
+
+```bash
+# distribuição de área por fonte e boxes degeneradas
+python src/data_prep/scan_degenerate_boxes.py \
+    --labels-dir data/processed/labels \
+    --images-dir data/processed/images \
+    --out-log results/audit/degenerate_boxes_log.txt
+
+# consistência dos labels com mais de 1 bbox contra a fonte original
+python src/data_prep/audit_bboxes.py \
+    --labels-dir data/processed/labels \
+    --images-dir data/processed/images \
+    --cvc-raw data/raw/cvc_clinicdb \
+    --etis-raw data/raw/etis_larib \
+    --hyperkvasir-json data/raw/hyperkvasir/bounding-boxes.json \
+    --out-log results/audit/bbox_audit_log.txt \
+    --previews-dir results/audit/previews
+```
+
+O `consolidate_dataset.py` descarta bboxes com área abaixo de 200px²
+(`MIN_BOX_AREA_PX`). O motivo e as evidências estão em `docs/decisions_log.md`.
+
 ## Rodando o pipeline completo
 
 ```bash
@@ -102,3 +131,5 @@ python pipeline.py --skip data train ...
   repositório — baixem e apontem os caminhos nos argumentos.
 - `configs/project_config.yaml` ainda não está conectado aos scripts, é só
   documentação de referência por enquanto.
+- Os logs de `results/audit/*.txt` são versionados; previews, checkpoints
+  e engines não (ver `.gitignore`).
