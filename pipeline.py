@@ -1,6 +1,4 @@
 """
-pipeline.py
-
 Encadeia as etapas do projeto na ordem certa:
 
     1. dados        -> src/data_prep/consolidate_dataset.py
@@ -28,11 +26,9 @@ CKPT_DIR = ROOT / "results" / "checkpoints"
 TABLES_DIR = ROOT / "results" / "tables"
 FIGURES_DIR = ROOT / "results" / "figures"
 
-
 def run(cmd):
     print(f"\n$ {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
-
 
 def main():
     parser = argparse.ArgumentParser(description="Pipeline completo do projeto")
@@ -40,6 +36,8 @@ def main():
     parser.add_argument("--cvc-clinicdb", required=True)
     parser.add_argument("--etis-larib", required=True)
     parser.add_argument("--device", default="0")
+    parser.add_argument("--models", nargs="+", help="ex: --models yolov8 yolov11 (padrão: todos)")
+    parser.add_argument("--variants", nargs="+", help="ex: --variants m (padrão: n m xl)")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument(
         "--skip", nargs="*", default=[],
@@ -56,15 +54,21 @@ def main():
              "--out", str(DATA_DIR)])
 
     if "train" not in args.skip:
-        run([py, str(SRC / "training" / "train_yolo.py"),
-             "--data", str(DATA_DIR / "data.yaml"),
-             "--project", str(CKPT_DIR),
-             "--device", args.device])
+        train_cmd = [py, str(SRC / "training" / "train_yolo.py"),
+                     "--data", str(DATA_DIR / "data.yaml"),
+                     "--project", str(CKPT_DIR),
+                     "--device", args.device]
+        if args.models:
+            train_cmd += ["--models", *args.models]
+        if args.variants:
+            train_cmd += ["--variants", *args.variants]
+        run(train_cmd)
 
     if "quantize" not in args.skip:
         run([py, str(SRC / "optimization" / "quantize_tensorrt.py"),
              "--manifest", str(CKPT_DIR / "training_manifest.json"),
              "--imgsz", str(args.imgsz),
+             "--device", args.device,
              "--out-manifest", str(CKPT_DIR / "quant_manifest.json")])
 
     if "benchmark" not in args.skip:
@@ -73,6 +77,7 @@ def main():
              "--data", str(DATA_DIR / "data.yaml"),
              "--out", str(TABLES_DIR / "table1_results.csv"),
              "--imgsz", str(args.imgsz),
+             "--device", args.device,
              "--test-images-dir", str(DATA_DIR / "images" / "test")])
 
     if "plot" not in args.skip:
@@ -81,7 +86,6 @@ def main():
              "--outdir", str(FIGURES_DIR)])
 
     print("\npipeline concluído — resultados em:", ROOT / "results")
-
 
 if __name__ == "__main__":
     main()
