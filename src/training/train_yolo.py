@@ -1,6 +1,4 @@
 """
-train_yolo.py
-
 Fine-tuning das variantes nano/medium/xl do YOLOv8, YOLOv9 e YOLOv11 a partir
 de pesos pré-treinados em COCO, com os hiperparâmetros usados no artigo:
 imgsz 640, 100 épocas, batch 16, Adam (lr 1e-3), cosine scheduler.
@@ -41,7 +39,6 @@ TRAIN_HPARAMS = dict(
     patience=0,  # sem early stopping, pra bater as 100 épocas do artigo mesmo
 )
 
-
 def train_one(arch, variant, data_yaml, project_dir, device):
     weights = MODEL_MAP[(arch, variant)]
     run_name = f"{arch}_{variant}_base"
@@ -50,9 +47,8 @@ def train_one(arch, variant, data_yaml, project_dir, device):
     model = YOLO(weights)
     model.train(data=data_yaml, project=project_dir, name=run_name, device=device, **TRAIN_HPARAMS)
 
-    best_weights = Path(project_dir) / run_name / "weights" / "best.pt"
-    return str(best_weights)
-
+    # o Ultralytics cria "<nome>2" se a pasta já existe; o trainer sabe o caminho real
+    return str(Path(model.trainer.best))
 
 def main():
     parser = argparse.ArgumentParser(description="Treino das variantes YOLO")
@@ -81,7 +77,6 @@ def main():
     print(f"\nmanifesto salvo em: {manifest_path}")
     for k, v in manifest.items():
         print(f"  {k}: {v}")
-
 
 if __name__ == "__main__":
     main()
