@@ -1,11 +1,10 @@
 """
-mask_to_bbox.py
+Conversão de máscara de segmentação em bounding boxes
 
-Converte máscara de segmentação -> bbox (pra CVC-ClinicDB e ETIS-Larib, que
-só vêm com máscara, sem bbox pronta). Pega o retângulo que envolve cada
-região branca da máscara (contorno externo).
+Cada região conectada da máscara (contorno externo) gera uma bbox em pixels.
+Usado para CVC-ClinicDB e ETIS-Larib, que não possuem bbox nativa
 
-Testa isolado antes de rodar em cima do dataset todo:
+Uso isolado (gera imagem de preview):
     python mask_to_bbox.py --image foo.png --mask foo_mask.png --out preview.png
 """
 
@@ -16,7 +15,7 @@ from pathlib import Path
 import cv2
 
 BINARY_THRESHOLD = 127
-MIN_CONTOUR_AREA_PX = 20  # abaixo disso é ruído de máscara, não pólipo
+MIN_CONTOUR_AREA_PX = 20  # abaixo disso é ruído de máscara
 
 
 @dataclass(frozen=True)
@@ -43,6 +42,7 @@ def find_polyp_contours(binary_mask):
 
 
 def mask_to_bbox(mask_path: Path) -> list[PixelBBox]:
+    # Retorna uma PixelBBox por região da máscara, lista vazia se a máscara não abrir
     binary = load_binary_mask(mask_path)
     if binary is None:
         return []
