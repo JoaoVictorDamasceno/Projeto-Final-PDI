@@ -192,14 +192,23 @@ def split_dataset(samples: list[Sample], ratios: dict, seed: int) -> dict[str, l
     random.Random(seed).shuffle(shuffled) # instância local, não altera o estado global do random
 
     n = len(shuffled)
-    n_train = int(n * ratios["train"])
-    n_val = int(n * ratios["val"])
+    # round() em vez de int(): com 1808 imagens dá 1446/181/181 (como no artigo);
+    # int() daria 1446/180/182. O teste fica com o restante.
+    n_train = round(n * ratios["train"])
+    n_val = round(n * ratios["val"])
 
     return {
         "train": shuffled[:n_train],
         "val": shuffled[n_train:n_train + n_val],
         "test": shuffled[n_train + n_val:],
     }
+
+
+def clean_output(out_root: Path) -> None:
+    # Apaga images/ e labels/ de execuções anteriores. Sem isso, uma imagem que
+    # muda de split entre execuções fica nos dois (o arquivo antigo não é removido).
+    for sub in ("images", "labels"):
+        shutil.rmtree(out_root / sub, ignore_errors=True)
 
 
 def write_split(samples: list[Sample], split_name: str, out_root: Path) -> None:
@@ -268,6 +277,7 @@ def main():
     splits = split_dataset(all_samples, SPLIT_RATIOS, SEED)
 
     out_root = Path(args.out)
+    clean_output(out_root)
     for split_name, split_samples in splits.items():
         write_split(split_samples, split_name, out_root)
         print(f"{split_name}: {len(split_samples)} imagens")
