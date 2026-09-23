@@ -1,13 +1,18 @@
 """
-consolidate_dataset.py
+Consolidação de HyperKvasir, CVC-ClinicDB e ETIS-Larib em um dataset único
+no formato Ultralytics (images/ e labels/ por split, mais data.yaml)
 
-Junta HyperKvasir, CVC-ClinicDB e ETIS-Larib num dataset único no formato
-que o Ultralytics espera (images/ + labels/ com .txt normalizado).
+Fontes de bbox:
+    HyperKvasir   -> bounding-boxes.json
+    CVC / ETIS    -> derivada da máscara via mask_to_bbox()
 
-HyperKvasir já vem com bbox pronta (bounding-boxes.json). CVC-ClinicDB e
-ETIS-Larib só têm máscara, então a bbox sai do mask_to_bbox().
+Split 80/10/10 por imagem, com seed fixa. Bboxes com área abaixo de
+MIN_BOX_AREA_PX são descartadas individualmente; a imagem e as demais
+boxes do arquivo são mantidas
 
-Split 80/10/10 por imagem, seed fixa pra dar sempre o mesmo resultado.
+Uso:
+    python consolidate_dataset.py --hyperkvasir <dir> --cvc-clinicdb <dir> \
+        --etis-larib <dir> --out <dir>
 """
 
 import argparse
@@ -27,10 +32,11 @@ SPLIT_RATIOS = {"train": 0.8, "val": 0.1, "test": 0.1}
 CLASSES = ["polyp"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".bmp"}
 
-# números batendo com o artigo, só pra avisar se o dataset baixado vier diferente
+# valores reportados no artigo de referência
 EXPECTED_COUNTS_BY_SOURCE = {"hyperkvasir": 1000, "cvcclinicdb": 612, "etislarib": 196}
 EXPECTED_TOTAL = 1808
 
+MIN_BOX_AREA_PX = 200 # ver docs/decisions_log.md
 
 @dataclass(frozen=True)
 class YoloBox:
@@ -56,6 +62,10 @@ class Sample:
     source: str
 
 
+def pixel_area(x1, y1, x2, y2) -> float:
+    return (x2 - x1) * (y2 - y1)
+
+
 def pixel_bbox_to_yolo(x1, y1, x2, y2, img_w, img_h, class_id: int = 0) -> YoloBox:
     cx = ((x1 + x2) / 2) / img_w
     cy = ((y1 + y2) / 2) / img_h
@@ -76,6 +86,14 @@ def hyperkvasir_boxes_for_image(annotations: dict, img_id: str, img_w: int, img_
 
     boxes = []
     for box in entry["bbox"]:
+        if box.get("label") != "polyp":
+            continue
+
+        area = pixel_area(box["xmin"], box["ymin"], box["xmax"], box["ymax"])
+        if area < MIN_BOX_AREA_PX:
+            print(f"[filtro] bbox degenerada descartada em hyperkvasir/{img_id}: área={area:.0f}px²")
+            continue
+
         yolo_box = pixel_bbox_to_yolo(box["xmin"], box["ymin"], box["xmax"], box["ymax"], img_w, img_h)
         if yolo_box.is_valid():
             boxes.append(yolo_box)
@@ -111,11 +129,11 @@ def collect_hyperkvasir(root: Path) -> list[Sample]:
 
 
 def find_matching_mask(img_path: Path, mask_dir: Path) -> Path | None:
-    # nome igual primeiro, senão tenta achar por stem (imagem .png, máscara .tif etc)
     same_name = mask_dir / img_path.name
     if same_name.exists():
         return same_name
 
+    # a extensão da máscara pode diferir da imagem (ex.: .png vs .tif) 
     candidates = list(mask_dir.glob(f"{img_path.stem}.*"))
     return candidates[0] if candidates else None
 
@@ -123,6 +141,11 @@ def find_matching_mask(img_path: Path, mask_dir: Path) -> Path | None:
 def mask_boxes_for_image(mask_path: Path) -> list[YoloBox]:
     boxes = []
     for pixel_box in mask_to_bbox(mask_path):
+        area = pixel_area(pixel_box.x1, pixel_box.y1, pixel_box.x2, pixel_box.y2)
+        if area < MIN_BOX_AREA_PX:
+            print(f"[filtro] bbox degenerada descartada em {mask_path.name}: área={area:.0f}px²")
+            continue
+
         yolo_box = pixel_bbox_to_yolo(
             pixel_box.x1, pixel_box.y1, pixel_box.x2, pixel_box.y2,
             pixel_box.img_w, pixel_box.img_h,
@@ -165,10 +188,8 @@ def collect_all_samples(hyperkvasir_dir: Path, cvc_dir: Path, etis_dir: Path) ->
 
 
 def split_dataset(samples: list[Sample], ratios: dict, seed: int) -> dict[str, list[Sample]]:
-    # Random local em vez de random.seed() global, pra não bagunçar estado
-    # de fora se isso aqui for chamado mais de uma vez (ou em teste)
     shuffled = samples.copy()
-    random.Random(seed).shuffle(shuffled)
+    random.Random(seed).shuffle(shuffled) # instância local, não altera o estado global do random
 
     n = len(shuffled)
     n_train = int(n * ratios["train"])
