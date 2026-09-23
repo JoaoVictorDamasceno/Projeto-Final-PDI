@@ -10,9 +10,9 @@ fps_threshold: 60
 image_size: 640
 
 datasets:
-  hyperkvasir: data/raw/hyperkvasir
-  cvc_clinicdb: data/raw/cvc_clinicdb
-  etis_larib: data/raw/etis_larib
+  hyperkvasir: data/raw/HyperKvasir
+  cvc_clinicdb: data/raw/CVC-ClinicDB
+  etis_larib: data/raw/ETIS-LaribPolypDB
   processed: data/processed
 
 train:
