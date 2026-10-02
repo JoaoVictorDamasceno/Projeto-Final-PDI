@@ -2,14 +2,18 @@
 Encadeia as etapas do projeto na ordem certa:
 
     1. dados        -> src/data_prep/consolidate_dataset.py
-    2. treino        -> src/training/train_yolo.py
-    3. quantização   -> src/optimization/quantize_tensorrt.py
-    4. benchmark      -> src/evaluation/benchmark.py
-    5. gráficos       -> src/evaluation/plot_results.py
+    2. validação     -> src/data_prep/validate_dataset.py
+    3. treino        -> src/training/train_yolo.py
+    4. quantização   -> src/optimization/quantize_tensorrt.py
+    5. benchmark      -> src/evaluation/benchmark.py
+    6. gráficos       -> src/evaluation/plot_results.py
 
 Cada script também roda sozinho na sua pasta, isso aqui só encadeia com os
 caminhos padrão do projeto. Use --skip pra pular etapa já feita (ex: já
 treinou e só quer refazer o benchmark).
+
+A validação confere o dataset consolidado contra a contagem oficial e sai com
+código 1 se algo divergir, o que interrompe o pipeline antes do treino.
 
 python pipeline.py --hyperkvasir X --cvc-clinicdb Y --etis-larib Z --device 0
 """
@@ -41,7 +45,7 @@ def main():
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument(
         "--skip", nargs="*", default=[],
-        choices=["data", "train", "quantize", "benchmark", "plot"],
+        choices=["data", "validate", "train", "quantize", "benchmark", "plot"],
     )
     args = parser.parse_args()
     py = sys.executable
@@ -52,6 +56,10 @@ def main():
              "--cvc-clinicdb", args.cvc_clinicdb,
              "--etis-larib", args.etis_larib,
              "--out", str(DATA_DIR)])
+
+    if "validate" not in args.skip:
+        run([py, str(SRC / "data_prep" / "validate_dataset.py"),
+             "--data-dir", str(DATA_DIR)])
 
     if "train" not in args.skip:
         train_cmd = [py, str(SRC / "training" / "train_yolo.py"),
