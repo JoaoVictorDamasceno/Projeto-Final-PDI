@@ -15,7 +15,7 @@ from pathlib import Path
 import cv2
 
 BINARY_THRESHOLD = 127
-MIN_CONTOUR_AREA_PX = 20  # abaixo disso é ruído de máscara
+MIN_CONTOUR_AREA_PX = 2  # abaixo disso é ruído de máscara
 
 
 @dataclass(frozen=True)
