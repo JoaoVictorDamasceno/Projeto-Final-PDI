@@ -67,7 +67,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   0ee7490e-8c46-4fcb-af53-eea80fec2394: 1 caixa(s)
   0f92c3df-cfaa-489a-bbe1-d89f78724849: 1 caixa(s)
   0fe16858-149c-4c38-b9ce-97879605d0c9: 1 caixa(s)
-  101a484a-5a31-493d-97a9-3ec5650c8bb1: 2 caixa(s)  <- MAIS DE 1 PÓLIPO : ruído
+  101a484a-5a31-493d-97a9-3ec5650c8bb1: 2 caixa(s)  <- MAIS DE 1 PÓLIPO : ruído, uma bbox grande (real) e uma bbox pequena (ruido) dentro dela
   1020f3b4-12fa-406c-aa42-83d75d221005: 1 caixa(s)
   1033b8ec-9777-4add-b023-b884df880de5: 1 caixa(s)
   107c011e-d7d8-4c81-acb8-f925b4308d3f: 1 caixa(s)

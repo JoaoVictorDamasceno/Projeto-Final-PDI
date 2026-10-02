@@ -31,7 +31,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   115: 1 caixa(s)
   116: 1 caixa(s)
   117: 1 caixa(s)
-  118: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  118: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido na mascara
   119: 1 caixa(s)
   12: 1 caixa(s)
   120: 1 caixa(s)
@@ -55,7 +55,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   137: 1 caixa(s)
   138: 1 caixa(s)
   139: 1 caixa(s)
-  14: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  14: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido na mascara, pequeno
   140: 1 caixa(s)
   141: 1 caixa(s)
   142: 1 caixa(s)
@@ -86,7 +86,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   165: 1 caixa(s)
   166: 1 caixa(s)
   167: 1 caixa(s)
-  168: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  168: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido na mascara
   169: 1 caixa(s)
   17: 1 caixa(s)
   170: 1 caixa(s)
@@ -104,7 +104,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   181: 1 caixa(s)
   182: 1 caixa(s)
   183: 1 caixa(s)
-  184: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  184: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   185: 1 caixa(s)
   186: 1 caixa(s)
   187: 1 caixa(s)
@@ -124,7 +124,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   2: 1 caixa(s)
   20: 1 caixa(s)
   200: 1 caixa(s)
-  201: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  201: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   202: 1 caixa(s)
   203: 1 caixa(s)
   204: 1 caixa(s)
@@ -137,8 +137,8 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   210: 1 caixa(s)
   211: 1 caixa(s)
   212: 1 caixa(s)
-  213: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
-  214: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  213: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
+  214: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   215: 1 caixa(s)
   216: 1 caixa(s)
   217: 1 caixa(s)
@@ -157,7 +157,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   229: 1 caixa(s)
   23: 1 caixa(s)
   230: 1 caixa(s)
-  231: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  231: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   232: 1 caixa(s)
   233: 1 caixa(s)
   234: 1 caixa(s)
@@ -168,7 +168,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   239: 1 caixa(s)
   24: 1 caixa(s)
   240: 1 caixa(s)
-  241: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  241: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   242: 1 caixa(s)
   243: 1 caixa(s)
   244: 1 caixa(s)
@@ -186,7 +186,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   255: 1 caixa(s)
   256: 1 caixa(s)
   257: 1 caixa(s)
-  258: 3 caixa(s)  <- MAIS DE 1 PÓLIPO
+  258: 3 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   259: 1 caixa(s)
   26: 1 caixa(s)
   260: 1 caixa(s)
@@ -200,7 +200,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   268: 1 caixa(s)
   269: 1 caixa(s)
   27: 1 caixa(s)
-  270: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  270: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   271: 1 caixa(s)
   272: 1 caixa(s)
   273: 1 caixa(s)
@@ -249,7 +249,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   311: 1 caixa(s)
   312: 1 caixa(s)
   313: 1 caixa(s)
-  314: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  314: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   315: 1 caixa(s)
   316: 1 caixa(s)
   317: 1 caixa(s)
@@ -283,7 +283,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   342: 1 caixa(s)
   343: 1 caixa(s)
   344: 1 caixa(s)
-  345: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  345: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   346: 1 caixa(s)
   347: 1 caixa(s)
   348: 1 caixa(s)
@@ -292,7 +292,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   350: 1 caixa(s)
   351: 1 caixa(s)
   352: 1 caixa(s)
-  353: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  353: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   354: 1 caixa(s)
   355: 1 caixa(s)
   356: 1 caixa(s)
@@ -365,7 +365,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   416: 1 caixa(s)
   417: 1 caixa(s)
   418: 1 caixa(s)
-  419: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  419: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   42: 1 caixa(s)
   420: 1 caixa(s)
   421: 1 caixa(s)
@@ -375,7 +375,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   425: 1 caixa(s)
   426: 1 caixa(s)
   427: 1 caixa(s)
-  428: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  428: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   429: 1 caixa(s)
   43: 1 caixa(s)
   430: 1 caixa(s)
@@ -422,7 +422,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   468: 1 caixa(s)
   469: 1 caixa(s)
   47: 1 caixa(s)
-  470: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  470: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   471: 1 caixa(s)
   472: 1 caixa(s)
   473: 1 caixa(s)
@@ -449,7 +449,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   492: 1 caixa(s)
   493: 1 caixa(s)
   494: 1 caixa(s)
-  495: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  495: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   496: 1 caixa(s)
   497: 1 caixa(s)
   498: 1 caixa(s)
@@ -483,7 +483,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   522: 1 caixa(s)
   523: 1 caixa(s)
   524: 1 caixa(s)
-  525: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  525: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   526: 1 caixa(s)
   527: 1 caixa(s)
   528: 1 caixa(s)
@@ -501,7 +501,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   539: 1 caixa(s)
   54: 1 caixa(s)
   540: 1 caixa(s)
-  541: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  541: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   542: 1 caixa(s)
   543: 1 caixa(s)
   544: 1 caixa(s)
@@ -538,7 +538,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   572: 1 caixa(s)
   573: 1 caixa(s)
   574: 1 caixa(s)
-  575: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  575: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   576: 1 caixa(s)
   577: 1 caixa(s)
   578: 1 caixa(s)
@@ -549,7 +549,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   582: 1 caixa(s)
   583: 1 caixa(s)
   584: 1 caixa(s)
-  585: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  585: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido
   586: 1 caixa(s)
   587: 1 caixa(s)
   588: 1 caixa(s)
@@ -609,7 +609,7 @@ DETALHE POR IMAGEM (todas, ordenadas por nome)
   85: 1 caixa(s)
   86: 1 caixa(s)
   87: 1 caixa(s)
-  88: 2 caixa(s)  <- MAIS DE 1 PÓLIPO
+  88: 2 caixa(s)  <- MAIS DE 1 PÓLIPO ruido na mascara, pequeno
   89: 1 caixa(s)
   9: 1 caixa(s)
   90: 1 caixa(s)
