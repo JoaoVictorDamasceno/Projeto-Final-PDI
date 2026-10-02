@@ -2,8 +2,9 @@
 
 Reprodução da metodologia do artigo "Otimização de Modelos de Visão
 Computacional via Quantização para Detecção de Pólipos em Tempo Real"
-(Teixeira et al.) — variantes do YOLOv8, YOLOv9 e YOLOv11, com e sem
-quantização FP16 via TensorRT, avaliadas contra o limiar de 60 FPS.
+(Teixeira et al., ver `docs/references.md`) — variantes do YOLOv8, YOLOv9
+e YOLOv11, com e sem quantização FP16 via TensorRT, avaliadas contra o
+limiar de 60 FPS.
 
 ## Estrutura
 
@@ -51,7 +52,8 @@ realtime-polyp-detection-yolo/
 │
 ├── notebooks/                      # exploração livre
 ├── docs/
-│   └── decisions_log.md            # registro do que foi tentado/funcionou/não funcionou
+│   ├── decisions_log.md            # registro do que foi tentado/funcionou/não funcionou
+│   └── references.md               # citação do artigo base e parâmetros herdados dele
 ├── pipeline.py                     # roda tudo em sequência
 └── requirements.txt
 ```
