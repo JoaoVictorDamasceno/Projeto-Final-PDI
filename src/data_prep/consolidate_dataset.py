@@ -6,9 +6,12 @@ Fontes de bbox:
     HyperKvasir   -> bounding-boxes.json
     CVC / ETIS    -> derivada da máscara via mask_to_bbox()
 
-Split 80/10/10 por imagem, com seed fixa. Bboxes com área abaixo de
-MIN_BOX_AREA_PX são descartadas individualmente; a imagem e as demais
-boxes do arquivo são mantidas
+Split 80/10/10 por imagem, com seed fixa.
+
+Filtragem de bboxes:
+    CVC / ETIS    -> nenhuma aqui; o ruído de máscara é tratado em mask_to_bbox()
+    HyperKvasir   -> uma bbox 100% contida em outra bbox da mesma imagem é
+                     descartada (só a menor); a imagem e as demais boxes são mantidas
 
 Uso:
     python consolidate_dataset.py --hyperkvasir <dir> --cvc-clinicdb <dir> \
@@ -19,7 +22,7 @@ import argparse
 import json
 import random
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
@@ -32,11 +35,8 @@ SPLIT_RATIOS = {"train": 0.8, "val": 0.1, "test": 0.1}
 CLASSES = ["polyp"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".bmp"}
 
-# valores reportados no artigo de referência
-EXPECTED_COUNTS_BY_SOURCE = {"hyperkvasir": 1000, "cvcclinicdb": 612, "etislarib": 196}
-EXPECTED_TOTAL = 1808
+PixelBox = tuple[float, float, float, float]  # xmin, ymin, xmax, ymax
 
-MIN_BOX_AREA_PX = 200 # ver docs/decisions_log.md
 
 @dataclass(frozen=True)
 class YoloBox:
@@ -62,6 +62,13 @@ class Sample:
     source: str
 
 
+@dataclass
+class Audit:
+    # contagens acumuladas durante a coleta, usadas no resumo final
+    images_analyzed: dict[str, int] = field(default_factory=dict)   # fonte -> nº de imagens
+    contained_removed: dict[str, int] = field(default_factory=dict)  # id HyperKvasir -> nº de boxes removidas
+
+
 def pixel_area(x1, y1, x2, y2) -> float:
     return (x2 - x1) * (y2 - y1)
 
@@ -74,33 +81,64 @@ def pixel_bbox_to_yolo(x1, y1, x2, y2, img_w, img_h, class_id: int = 0) -> YoloB
     return YoloBox(class_id, cx, cy, bw, bh)
 
 
+def is_inside(inner: PixelBox, outer: PixelBox) -> bool:
+    # 100% dentro: os quatro lados de `inner` estão dentro (ou encostados) nos de `outer`
+    return (inner[0] >= outer[0] and inner[1] >= outer[1]
+            and inner[2] <= outer[2] and inner[3] <= outer[3])
+
+
+def drop_contained_boxes(boxes: list[PixelBox]) -> tuple[list[PixelBox], list[PixelBox]]:
+    # Retorna (mantidas, descartadas). Uma box é descartada se estiver 100% dentro de
+    # outra box maior; só a menor sai. Se duas boxes forem idênticas, sobra a primeira.
+    kept, dropped = [], []
+    for i, inner in enumerate(boxes):
+        inner_area = pixel_area(*inner)
+        contained = False
+        for j, outer in enumerate(boxes):
+            if i == j or not is_inside(inner, outer):
+                continue
+            outer_area = pixel_area(*outer)
+            if outer_area > inner_area or (outer_area == inner_area and j < i):
+                contained = True
+                break
+        (dropped if contained else kept).append(inner)
+    return kept, dropped
+
+
 def load_hyperkvasir_annotations(json_path: Path) -> dict:
     with open(json_path, "r") as f:
         return json.load(f)
 
 
-def hyperkvasir_boxes_for_image(annotations: dict, img_id: str, img_w: int, img_h: int) -> list[YoloBox]:
+def hyperkvasir_boxes_for_image(annotations: dict, img_id: str, img_w: int, img_h: int,
+                                audit: Audit) -> list[YoloBox]:
     entry = annotations.get(img_id)
     if not entry or not entry.get("bbox"):
         return []
 
+    pixel_boxes = [
+        (box["xmin"], box["ymin"], box["xmax"], box["ymax"])
+        for box in entry["bbox"]
+        if box.get("label") == "polyp"
+    ]
+
+    kept, dropped = drop_contained_boxes(pixel_boxes)
+    for box in dropped:
+        print(f"[filtro] bbox contida em outra descartada em hyperkvasir/{img_id}: área={pixel_area(*box):.0f}px²")
+    if dropped:
+        audit.contained_removed[img_id] = len(dropped)
+
     boxes = []
-    for box in entry["bbox"]:
-        if box.get("label") != "polyp":
-            continue
-
-        area = pixel_area(box["xmin"], box["ymin"], box["xmax"], box["ymax"])
-        if area < MIN_BOX_AREA_PX:
-            print(f"[filtro] bbox degenerada descartada em hyperkvasir/{img_id}: área={area:.0f}px²")
-            continue
-
-        yolo_box = pixel_bbox_to_yolo(box["xmin"], box["ymin"], box["xmax"], box["ymax"], img_w, img_h)
+    for x1, y1, x2, y2 in kept:
+        yolo_box = pixel_bbox_to_yolo(x1, y1, x2, y2, img_w, img_h)
         if yolo_box.is_valid():
             boxes.append(yolo_box)
+        else:
+            print(f"[aviso] bbox inválida descartada em hyperkvasir/{img_id}: ({x1}, {y1}, {x2}, {y2})")
     return boxes
 
 
-def collect_hyperkvasir(root: Path) -> list[Sample]:
+def collect_hyperkvasir(root: Path, audit: Audit) -> list[Sample]:
     img_dir = root / "images"
     json_path = root / "bounding-boxes.json"
 
@@ -110,6 +148,7 @@ def collect_hyperkvasir(root: Path) -> list[Sample]:
 
     annotations = load_hyperkvasir_annotations(json_path)
     samples = []
+    analyzed = 0
 
     for img_path in sorted(img_dir.glob("*")):
         if img_path.suffix.lower() not in IMAGE_EXTENSIONS:
@@ -119,12 +158,14 @@ def collect_hyperkvasir(root: Path) -> list[Sample]:
         if img is None:
             print(f"[aviso] HyperKvasir: não consegui abrir {img_path}, pulando")
             continue
+        analyzed += 1
         h, w = img.shape[:2]
 
-        boxes = hyperkvasir_boxes_for_image(annotations, img_path.stem, w, h)
+        boxes = hyperkvasir_boxes_for_image(annotations, img_path.stem, w, h, audit)
         if boxes:
             samples.append(Sample(img_path, boxes, "hyperkvasir"))
 
+    audit.images_analyzed["hyperkvasir"] = analyzed
     return samples
 
 
@@ -141,21 +182,20 @@ def find_matching_mask(img_path: Path, mask_dir: Path) -> Path | None:
 def mask_boxes_for_image(mask_path: Path) -> list[YoloBox]:
     boxes = []
     for pixel_box in mask_to_bbox(mask_path):
-        area = pixel_area(pixel_box.x1, pixel_box.y1, pixel_box.x2, pixel_box.y2)
-        if area < MIN_BOX_AREA_PX:
-            print(f"[filtro] bbox degenerada descartada em {mask_path.name}: área={area:.0f}px²")
-            continue
-
         yolo_box = pixel_bbox_to_yolo(
             pixel_box.x1, pixel_box.y1, pixel_box.x2, pixel_box.y2,
             pixel_box.img_w, pixel_box.img_h,
         )
         if yolo_box.is_valid():
             boxes.append(yolo_box)
+        else:
+            print(f"[aviso] bbox inválida descartada em {mask_path.name}: "
+                  f"({pixel_box.x1}, {pixel_box.y1}, {pixel_box.x2}, {pixel_box.y2})")
     return boxes
 
 
-def collect_mask_based(root: Path, source_name: str, img_folder: str, mask_folder: str) -> list[Sample]:
+def collect_mask_based(root: Path, source_name: str, img_folder: str, mask_folder: str,
+                       audit: Audit) -> list[Sample]:
     img_dir = root / img_folder
     mask_dir = root / mask_folder
 
@@ -164,32 +204,37 @@ def collect_mask_based(root: Path, source_name: str, img_folder: str, mask_folde
         return []
 
     samples = []
+    analyzed = 0
     for img_path in sorted(img_dir.glob("*")):
         if img_path.suffix.lower() not in IMAGE_EXTENSIONS:
             continue
 
         mask_path = find_matching_mask(img_path, mask_dir)
         if mask_path is None:
+            print(f"[aviso] {source_name}: máscara não encontrada para {img_path.name}, pulando")
             continue
+        analyzed += 1
 
         boxes = mask_boxes_for_image(mask_path)
         if boxes:
             samples.append(Sample(img_path, boxes, source_name))
 
+    audit.images_analyzed[source_name] = analyzed
     return samples
 
 
-def collect_all_samples(hyperkvasir_dir: Path, cvc_dir: Path, etis_dir: Path) -> dict[str, list[Sample]]:
+def collect_all_samples(hyperkvasir_dir: Path, cvc_dir: Path, etis_dir: Path,
+                        audit: Audit) -> dict[str, list[Sample]]:
     return {
-        "hyperkvasir": collect_hyperkvasir(hyperkvasir_dir),
-        "cvcclinicdb": collect_mask_based(cvc_dir, "cvcclinicdb", "PNG/Original", "PNG/Ground Truth"),
-        "etislarib": collect_mask_based(etis_dir, "etislarib", "images", "masks"),
+        "hyperkvasir": collect_hyperkvasir(hyperkvasir_dir, audit),
+        "cvcclinicdb": collect_mask_based(cvc_dir, "cvcclinicdb", "PNG/Original", "PNG/Ground Truth", audit),
+        "etislarib": collect_mask_based(etis_dir, "etislarib", "images", "masks", audit),
     }
 
 
 def split_dataset(samples: list[Sample], ratios: dict, seed: int) -> dict[str, list[Sample]]:
     shuffled = samples.copy()
-    random.Random(seed).shuffle(shuffled) # instância local, não altera o estado global do random
+    random.Random(seed).shuffle(shuffled) 
 
     n = len(shuffled)
     # round() em vez de int(): com 1808 imagens dá 1446/181/181 (como no artigo);
@@ -240,15 +285,25 @@ def write_data_yaml(out_root: Path) -> Path:
     return yaml_path
 
 
-def warn_if_counts_diverge(samples_by_source: dict[str, list[Sample]]) -> None:
-    for source, expected in EXPECTED_COUNTS_BY_SOURCE.items():
-        actual = len(samples_by_source.get(source, []))
-        if actual != expected:
-            print(f"[alerta] {source}: {actual} imagens coletadas, artigo reporta {expected}")
+def print_final_summary(samples_by_source: dict[str, list[Sample]], audit: Audit) -> None:
+    print("\n" + "=" * 60)
+    print("RESUMO FINAL")
+    print("=" * 60)
 
-    total = sum(len(s) for s in samples_by_source.values())
-    if total != EXPECTED_TOTAL:
-        print(f"[alerta] total coletado ({total}) diferente do total do artigo ({EXPECTED_TOTAL})")
+    total_analyzed = sum(audit.images_analyzed.values())
+    total_samples = sum(len(s) for s in samples_by_source.values())
+    total_boxes = sum(len(sample.boxes) for s in samples_by_source.values() for sample in s)
+    print(f"Imagens analisadas: {total_analyzed}")
+    print(f"Imagens com ao menos 1 bbox (no dataset): {total_samples}")
+    print(f"Total de bboxes: {total_boxes}")
+    for source, samples in samples_by_source.items():
+        n_boxes = sum(len(sample.boxes) for sample in samples)
+        print(f"  {source}: {audit.images_analyzed.get(source, 0)} analisadas, "
+              f"{len(samples)} no dataset, {n_boxes} bboxes")
+
+    n_removed = sum(audit.contained_removed.values())
+    print(f"\nHyperKvasir: {n_removed} bbox(es) removida(s) por estarem contidas em outra, "
+          f"em {len(audit.contained_removed)} imagem(ns)")
 
 
 def parse_args():
@@ -263,12 +318,12 @@ def parse_args():
 def main():
     args = parse_args()
 
+    audit = Audit()
     samples_by_source = collect_all_samples(
-        Path(args.hyperkvasir), Path(args.cvc_clinicdb), Path(args.etis_larib)
+        Path(args.hyperkvasir), Path(args.cvc_clinicdb), Path(args.etis_larib), audit
     )
     for source, samples in samples_by_source.items():
         print(f"{source}: {len(samples)} imagens coletadas")
-    warn_if_counts_diverge(samples_by_source)
 
     all_samples = [s for source_samples in samples_by_source.values() for s in source_samples]
     if not all_samples:
@@ -283,6 +338,8 @@ def main():
         print(f"{split_name}: {len(split_samples)} imagens")
 
     yaml_path = write_data_yaml(out_root)
+
+    print_final_summary(samples_by_source, audit)
 
     print(f"\nDataset unificado e pronto em: {out_root}")
     print(f"Arquivo de configuração para o YOLO: {yaml_path}")
