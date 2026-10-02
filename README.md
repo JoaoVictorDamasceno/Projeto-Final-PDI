@@ -21,9 +21,9 @@ realtime-polyp-detection-yolo/
 │   ├── data_prep/
 │   │   ├── mask_to_bbox.py            # conversão de máscara -> bbox (isolada, testável sozinha)
 │   │   ├── consolidate_dataset.py     # une os 3 datasets, gera os splits
-│   │   ├── scan_multibox_sources.py   # inventário bruto de imagens com mais de 1 pólipo (sem filtro)
-│   │   ├── scan_degenerate_boxes.py   # distribuição de área das bboxes e detecção de degeneradas
-│   │   └── inspect_multibox.py        # inspeção visual de labels específicos
+│   │   ├── validate_dataset.py        # valida o dataset consolidado contra a contagem oficial
+│   │   ├── verify_mask_filter.py      # confere o filtro de ruído do mask_to_bbox (CVC/ETIS)
+│   │   └── scan_multibox_sources.py   # inventário bruto de imagens com mais de 1 pólipo (sem filtro)
 │   │
 │   ├── training/
 │   │   └── train_yolo.py         # fine-tuning das variantes
@@ -82,12 +82,6 @@ em volta do pólipo.
 Depois de consolidar, é possível verificar a qualidade das bboxes geradas:
 
 ```bash
-# distribuição de área por fonte e boxes degeneradas
-python src/data_prep/scan_degenerate_boxes.py \
-    --labels-dir data/processed/labels \
-    --images-dir data/processed/images \
-    --out-log results/audit/degenerate_boxes_log.txt
-
 # inventário bruto (sem filtro de área/label) das fontes originais, para
 # identificar imagens com mais de 1 pólipo e triá-las visualmente
 python src/data_prep/scan_multibox_sources.py \
@@ -96,10 +90,24 @@ python src/data_prep/scan_multibox_sources.py \
     --etis-dir data/raw/etis_larib \
     --out-logs-dir results/audit \
     --samples-dir data/samples/inventario_bruto
+
+# validação do dataset consolidado contra a contagem oficial
+# (sai com código 1 se qualquer verificação falhar)
+python src/data_prep/validate_dataset.py --data-dir data/processed
+
+# verificação do filtro de ruído do mask_to_bbox no CVC e no ETIS
+python src/data_prep/verify_mask_filter.py \
+    --cvc-dir data/raw/cvc_clinicdb \
+    --etis-dir data/raw/etis_larib \
+    --samples-dir data/samples/mask_to_bbox_filtrado
 ```
 
-O `consolidate_dataset.py` descarta bboxes com área abaixo de 200px²
-(`MIN_BOX_AREA_PX`). O motivo, as evidências e a triagem dos casos de
+O ruído de bboxes é tratado em dois lugares: no `mask_to_bbox.py`, que
+descarta contornos de máscara abaixo de `MIN_CONTOUR_AREA_PX` (CVC-ClinicDB e
+ETIS-Larib), e no `consolidate_dataset.py`, que descarta no HyperKvasir a bbox
+100% contida em outra da mesma imagem. A contagem oficial do dataset
+consolidado é 1808 imagens (1446/181/181) e 1917 caixas, verificada pelo
+`validate_dataset.py`. O motivo, as evidências e a triagem dos casos de
 múltiplos pólipos estão em `docs/decisions_log.md`.
 
 ## Rodando o pipeline completo
