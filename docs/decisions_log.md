@@ -87,7 +87,7 @@ de caixas de cada imagem, e uma pasta de amostra visual (`01_original`,
 ### Evidências
 
 - HyperKvasir: 1000 imagens no total, 945 com exatamente 1 bbox, 55 com mais
-  de 1 (inclui um outlier de 10 caixas em uma única imagem).
+  de 1.
 - CVC-ClinicDB: 612 imagens no total, 559 com exatamente 1 bbox, 53 com mais
   de 1, concentradas em sequências de frames consecutivos (ex.: 547–571,
   70–77).
@@ -119,12 +119,12 @@ como pólipo válido ou possível ruído:
 
 | Dataset      | Casos com >1 bbox | Classificados como ruído | Classificados como válidos |
 | ------------ | :---------------: | :----------------------: | :------------------------: |
-| HyperKvasir  |        55         | 8 (inclui outlier de 10) |             47             |
+| HyperKvasir  |        55         |            8             |             47             |
 | CVC-ClinicDB |        53         |            23            |             30             |
 | ETIS-Larib   |         6         |            0             |             6              |
 
-O outlier de 10 caixas (HyperKvasir) está entre os 8 casos classificados
-como ruído, confirmando a suspeita levantada na fase de Evidências.
+O outlier de 10 caixas do HyperKvasir (`4604cf0d`) foi classificado como
+válido, e não como ruído (ver entrada 003).
 
 ### Pendências
 
@@ -138,7 +138,7 @@ CVC-ClinicDB), a ser feito em entrada futura referenciando esta.
 ## 002 — Descontinuação do audit_bboxes.py
 
 **Data:** 2026-09-26
-**Status:** Substituída por 001
+**Status:** Aceita
 **Scripts/arquivos:** `src/data_prep/audit_bboxes.py` (removido)
 
 ### Problema
@@ -156,3 +156,167 @@ outro script do `data_prep/` importa `audit_bboxes`.
 ### Pendências
 
 Nenhuma.
+
+---
+
+## 003 — Filtro de contenção no HyperKvasir no lugar do filtro de área
+
+**Data:** 2026-10-02
+**Status:** Aceita
+**Scripts/arquivos:** `src/data_prep/consolidate_dataset.py`
+
+### Problema
+
+Na revisão visual (entrada 001), 8 imagens do HyperKvasir foram classificadas
+como ruído: cada uma tinha uma caixa espúria. O pipeline antigo tratava isso
+com um corte por área (`MIN_BOX_AREA_PX = 200`), que não olhava para a causa do
+ruído e podia, em princípio, remover pólipos pequenos reais.
+
+### Método
+
+Substituído o corte por área por um filtro geométrico: uma bbox 100% contida em
+outra bbox da mesma imagem é descartada (só a menor). A imagem e as demais
+caixas são mantidas. Comparadas as saídas do pipeline antigo e do novo.
+
+### Evidências
+
+- O filtro removeu exatamente 8 caixas, uma em cada imagem de ruído, e nenhuma
+  das 47 imagens classificadas como válidas na triagem (inclui a de 10 caixas,
+  `4604cf0d`).
+- Áreas das 8 caixas removidas: 4, 8, 33, 61, 112, 129, 402 e 1452 px².
+- O corte antigo (< 200 px²) pegava só as 6 menores. As caixas de 402 px²
+  (`90d30949`) e 1452 px² (`101a484a`) passavam. Isso explica 1925 − 6 = 1919
+  no pipeline antigo e 1919 − 2 = 1917 no novo.
+- Nenhuma das 6 caixas que o corte antigo removia era pólipo pequeno real.
+- Imagens analisadas e no dataset: 1808 e 1808, com split 1446/181/181.
+
+### Decisão
+
+Adotar o filtro de contenção apenas no HyperKvasir. No CVC e no ETIS não se
+aplica: a bbox de um componente pode ficar legitimamente dentro da de outro
+(ex.: pólipo em C com outro dentro). Removido `MIN_BOX_AREA_PX`.
+
+### Alternativas não adotadas
+
+- Manter o corte por área: deixava 2 caixas de ruído e não tinha base além do
+  tamanho.
+- Lista fixa de IDs de ruído com remoção manual: não generaliza e esconde o
+  critério.
+
+### Validação
+
+Previsto vs. obtido: o cenário previsto (90d30949 com 2 caixas) deu 1917 no
+total, com HyperKvasir 1063, CVC 646 e ETIS 208, igual ao obtido. O aviso
+`<- VERIFICAR` da 90d30949 era alarme falso: das 3 caixas no JSON, 2 são
+pólipos reais e 1 é ruído.
+
+---
+
+## 004 — Redução de MIN_CONTOUR_AREA_PX de 20 para 2 no mask_to_bbox
+
+**Data:** 2026-10-02
+**Status:** Aceita
+**Scripts/arquivos:** `src/data_prep/mask_to_bbox.py`, `src/data_prep/verify_mask_filter.py`
+
+### Problema
+
+No CVC-ClinicDB, 23 imagens foram classificadas como ruído na revisão visual
+(entrada 001): contornos minúsculos na máscara geravam caixas extras. O filtro
+do `mask_to_bbox.py` usava `MIN_CONTOUR_AREA_PX = 20`; a questão era se esse
+valor era o adequado para o ruído observado (contornos de 1–2 px²).
+
+### Método
+
+`MIN_CONTOUR_AREA_PX` alterado de 20 para 2: `mask_to_bbox()` passa a
+descartar apenas contornos com área < 2. O `verify_mask_filter.py` roda o
+filtro em CVC e ETIS e confere que cada uma das 23 imagens de ruído do CVC
+termina com exatamente 1 caixa.
+
+### Evidências
+
+- CVC: 670 contornos brutos − 24 de ruído = 646 caixas.
+- ETIS: 208 contornos, nenhum removido.
+- Resultado do `verify_mask_filter.py`: 23/23 com 1 box.
+- Os 24 contornos removidos estão nas 23 imagens de ruído: 22 tinham 2 caixas
+  (1 pólipo + 1 ruído) e 1 tinha 3 caixas (1 pólipo + 2 ruídos), o que dá
+  22 + 2 = 24.
+
+### Decisão
+
+Reduzir `MIN_CONTOUR_AREA_PX` de 20 para 2 no `mask_to_bbox`. O valor 2
+corresponde ao tamanho do ruído observado na triagem (contornos de 1–2 px²,
+entrada 001) e preserva contornos de área ≥ 2 px². Comparados os valores 20 e
+2, o resultado foi idêntico (nos dados atuais nenhum contorno tem área entre 2
+e 19 px²); optou-se pelo valor mais baixo por ser o mais conservador, já que
+descarta menos. O ruído de máscara é tratado na origem, e o consolidate não
+aplica filtro adicional ao CVC/ETIS.
+
+### Alternativas não adotadas
+
+- Manter `MIN_CONTOUR_AREA_PX = 20` (valor anterior): o resultado era idêntico
+  ao do valor 2, então não havia ganho; o 20 foi descartado por ser menos
+  conservador (cortaria contornos pequenos que não são ruído, caso apareçam).
+- Filtro de área em pixels da bbox dentro do consolidate (o antigo
+  `MIN_BOX_AREA_PX`): ver entrada 003.
+
+---
+
+## 005 — Separação consolidate / validate e contagem oficial do dataset
+
+**Data:** 2026-10-02
+**Status:** Aceita
+**Scripts/arquivos:** `src/data_prep/consolidate_dataset.py`, `src/data_prep/validate_dataset.py`
+
+### Problema
+
+O consolidate carregava valores esperados (`EXPECTED_COUNTS_BY_SOURCE`,
+`EXPECTED_TOTAL`, `HYPERKVASIR_NOISE_IDS`) e alertas de divergência. Quem produz
+o dataset não deveria se avaliar, e o `validate_dataset.py` estava quebrado
+(importava `MIN_BOX_AREA_PX`, que deixou de existir).
+
+### Decisão
+
+- O consolidate só produz o dataset e imprime diagnóstico do que fez (linhas
+  `[filtro]`, `[aviso]`, contagens e resumo). Nenhuma comparação com valor
+  esperado.
+- Todas as verificações contra a contagem oficial ficam no validate: totais e
+  contagens por split e por fonte, 1:1 imagem/label, ausência de imagem em dois
+  splits, imagens legíveis, formato YOLO, ausência de caixa aninhada no
+  HyperKvasir, contagem das 8 imagens de ruído e presença do `data.yaml`.
+- Caixas esperadas por fonte (não só total): totais sozinhos podem esconder
+  erros que se compensam.
+- A contagem por split é só impressa, não verificada: depende do shuffle e não
+  há valor independente para comparar.
+- Removidos o corte < 200 px² e o argumento `--expected-boxes` do validate.
+- Acrescentado um `[aviso]` no consolidate quando uma imagem do CVC/ETIS é
+  pulada por não ter máscara (antes era um `continue` silencioso).
+
+### Contagem oficial
+
+| Fonte        | Imagens  |  Caixas  | Origem                             |
+| ------------ | :------: | :------: | ---------------------------------- |
+| HyperKvasir  |   1000   |   1063   | 1071 no JSON − 8 contidas em outra |
+| CVC-ClinicDB |   612    |   646    | 670 contornos − 24 de ruído        |
+| ETIS-Larib   |   196    |   208    | nenhum removido                    |
+| **Total**    | **1808** | **1917** | split 1446 / 181 / 181             |
+
+Imagens de ruído do HyperKvasir ficam com 9 pólipos reais: 7 imagens com 1 e a
+`90d30949` com 2. O dataset tem 109 caixas a mais que 1 por imagem
+(63 + 34 + 12), o que pode explicar diferenças em relação ao artigo.
+
+### Validação
+
+Testado com dados sintéticos: o dataset montado com a contagem oficial passa em
+todas as verificações, e erros introduzidos de propósito (caixa aninhada,
+3 caixas na `90d30949`, caixa extra no CVC, totais) falham.
+
+Rodado nos dados reais (`python src/data_prep/validate_dataset.py --data-dir
+data/processed`), o validate terminou com "Dataset válido.", sem nenhuma
+verificação em falha.
+
+### Pendências
+
+- Refazer treino, quantização e benchmark: modelos e tabelas anteriores foram
+  gerados com o dataset antigo (1919 caixas).
+- Se um filtro mudar, o validate falha de propósito até as constantes serem
+  atualizadas.
