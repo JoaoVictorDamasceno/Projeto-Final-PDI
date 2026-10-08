@@ -33,7 +33,7 @@ samples/<dataset>/<img_id>/ com:
                             a imagem tem 4 boxes, são 4 cores distintas)
  
 Uso:
-    python scan_multibox_sources.py \
+    python src/data_prep/scan_multibox_sources.py \
         --hyperkvasir-dir data/raw/HyperKvasir \
         --cvc-dir data/raw/CVC-ClinicDB \
         --etis-dir data/raw/ETIS-LaribPolypDB \

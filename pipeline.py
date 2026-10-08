@@ -15,7 +15,11 @@ treinou e só quer refazer o benchmark).
 A validação confere o dataset consolidado contra a contagem oficial e sai com
 código 1 se algo divergir, o que interrompe o pipeline antes do treino.
 
-python pipeline.py --hyperkvasir X --cvc-clinicdb Y --etis-larib Z --device 0
+python pipeline.py \
+    --hyperkvasir data/raw/HyperKvasir \
+        --cvc-clinicdb data/raw/CVC-ClinicDB \
+        --etis-larib data/raw/ETIS-LaribPolypDB \
+    --device 0
 """
 
 import argparse

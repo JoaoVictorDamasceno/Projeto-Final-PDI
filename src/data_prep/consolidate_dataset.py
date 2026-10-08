@@ -14,8 +14,11 @@ Filtragem de bboxes:
                      descartada (só a menor); a imagem e as demais boxes são mantidas
 
 Uso:
-    python consolidate_dataset.py --hyperkvasir <dir> --cvc-clinicdb <dir> \
-        --etis-larib <dir> --out <dir>
+    python src/data_prep/consolidate_dataset.py \
+    --hyperkvasir data/raw/HyperKvasir \
+        --cvc data/raw/CVC-ClinicDB \
+        --etis data/raw/ETIS-LaribPolypDB \
+    --out data/processed
 """
 
 import argparse

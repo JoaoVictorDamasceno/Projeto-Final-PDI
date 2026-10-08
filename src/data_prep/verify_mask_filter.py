@@ -70,11 +70,13 @@ def main():
     total = len(items)
     print(f"MIN_CONTOUR_AREA_PX = {MIN_CONTOUR_AREA_PX} | {total} imagens para analisar")
 
+    # dicionário cuja chave é o nome do dataset e o seu valor é outro dicionário
+    # cuja chave é o id da imagem e seu valor é o número de bboxes encontradas
     counts: dict[str, dict[str, int]] = {d: {} for d in dataset_dirs}
     errors = []
 
     for n, (dataset, mask_dir, img_path) in enumerate(items, 1):
-        img_id = img_path.stem
+        img_id = img_path.stem 
         mask_path = find_file(mask_dir, img_id)
         if mask_path is None or load_binary_mask(mask_path) is None:
             errors.append(f"{dataset}/{img_id}")
