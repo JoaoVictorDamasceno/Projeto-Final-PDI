@@ -29,7 +29,6 @@ de reuso).
 | FPS = imagens processadas / tempo total de execução        | Seção 3.4   | `benchmark.py` (`measure_fps`)                      |
 | Limiar de 60 FPS (orçamento de 100 ms, Kader et al. 2026)  | Intro, 3.4  | `benchmark.py`, `plot_results.py` (`FPS_THRESHOLD`) |
 | Precisão, Recall e mAP@0.5 com IoU ≥ 0.5                   | Seção 3.4   | `benchmark.py` (`evaluate_metrics`)                 |
-| Treino na RTX 4090 e inferência na RTX 3070 (notebook)     | Seção 3.3   | README, seção Notas                                 |
 
 ## Onde o projeto diverge ou o artigo não especifica
 
