@@ -4,25 +4,37 @@ plot_results.py
 Gera dois gráficos a partir do CSV produzido pelo benchmark.py:
   - comparação de FPS (base FP32 vs FP16) por variante/arquitetura
   - trade-off mAP@0.5 x FPS pras configurações FP16
+Os dois trazem o nome de cada YOLO (YOLOv8, YOLOv9, YOLOv11) nas representações.
 
-python plot_results.py --csv results/tables/table1_results.csv --outdir results/figures
+python src/evaluation/plot_results.py --csv results/tables/table1_results.csv --outdir results/figures
 """
 
 import argparse
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import pandas as pd
+import matplotlib
 
-VARIANT_ORDER = ["Nano (n)", "Medium (m)", "Extra Large (xl)"]
+matplotlib.use("Agg")  # sem tela (container)
+import matplotlib.pyplot as plt  # noqa: E402
+import pandas as pd  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
+
+VARIANT_ORDER = ["Nano (n)", "Medium (m)"]
 MODEL_ORDER = ["YOLOv8", "YOLOv9", "YOLOv11"]
 FPS_THRESHOLD = 60
 
 
 def plot_fps_comparison(df: pd.DataFrame, outpath: Path):
-    fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(8, 10), sharex=True)
+    # só desenha as variantes que existem no CSV (ex.: só Nano)
+    variants = [v for v in VARIANT_ORDER if (df["Variante"] == v).any()]
+    if not variants:
+        raise SystemExit("nenhuma variante conhecida encontrada no CSV")
 
-    for ax, variant in zip(axes, VARIANT_ORDER):
+    fig, axes = plt.subplots(len(variants), 1, figsize=(8, 3.6 * len(variants) + 1),
+                             sharex=True, squeeze=False)
+    axes = axes[:, 0]
+
+    for ax, variant in zip(axes, variants):
         sub = df[df["Variante"] == variant]
         x = range(len(MODEL_ORDER))
         width = 0.35
@@ -42,13 +54,14 @@ def plot_fps_comparison(df: pd.DataFrame, outpath: Path):
 
         for i, (b, f, g) in enumerate(zip(base_vals, fp16_vals, gains)):
             ax.text(i - width / 2, b + 1, f"{b:.1f}", ha="center", fontsize=8)
-            ax.text(i + width / 2, f + 1, f"{f:.1f} (+{g:.1f}%)", ha="center", fontsize=8)
+            ax.text(i + width / 2, f + 1, f"{f:.1f} ({g:+.1f}%)", ha="center", fontsize=8)
 
         ax.axhline(FPS_THRESHOLD, color="red", linestyle="--", linewidth=0.8)
         ax.set_ylabel("FPS")
         ax.set_title(variant, loc="right", fontsize=9)
         ax.set_xticks(list(x))
-        ax.set_xticklabels(MODEL_ORDER)
+        ax.set_xticklabels(MODEL_ORDER, fontsize=10, fontweight="bold")  # nome de cada YOLO
+        ax.tick_params(axis="x", labelbottom=True)
         ax.set_ylim(0, max(fp16_vals + base_vals + [FPS_THRESHOLD]) * 1.25)
 
     axes[0].legend(loc="upper left", fontsize=8)
@@ -60,10 +73,13 @@ def plot_fps_comparison(df: pd.DataFrame, outpath: Path):
 
 
 def plot_tradeoff(df: pd.DataFrame, outpath: Path):
-    fp16_df = df[df["Quantizacao"] == "FP16"]
+    fp16_df = df[df["Quantizacao"] == "FP16"].dropna(subset=["FPS", "mAP@0.5"])
+    if fp16_df.empty:
+        print("[aviso] sem mAP@0.5 no CSV (ex.: --skip-metrics); gráfico de trade-off não gerado")
+        return
 
     markers = {"YOLOv8": "o", "YOLOv9": "s", "YOLOv11": "D"}
-    facecolors = {"Nano (n)": "white", "Medium (m)": "gray", "Extra Large (xl)": "black"}
+    facecolors = {"Nano (n)": "white", "Medium (m)": "gray"}
 
     fig, ax = plt.subplots(figsize=(7, 6))
     for _, row in fp16_df.iterrows():
@@ -75,12 +91,23 @@ def plot_tradeoff(df: pd.DataFrame, outpath: Path):
             edgecolors="black",
             linewidths=1.2,
         )
+        # nome do YOLO ao lado de cada ponto
+        ax.annotate(row["Modelo"], (row["FPS"], row["mAP@0.5"]),
+                    textcoords="offset points", xytext=(8, 6), fontsize=9, fontweight="bold")
 
     ax.axvline(FPS_THRESHOLD, color="red", linestyle="--", linewidth=0.8, label="limiar 60 FPS")
+
+    # legenda com o nome de cada YOLO (um marcador por arquitetura presente)
+    handles = [Line2D([0], [0], marker=markers[m], linestyle="", markerfacecolor="white",
+                      markeredgecolor="black", markersize=9, label=m)
+               for m in MODEL_ORDER if (fp16_df["Modelo"] == m).any()]
+    handles.append(Line2D([0], [0], color="red", linestyle="--", linewidth=0.8, label="limiar 60 FPS"))
+
     ax.set_xlabel("FPS")
     ax.set_ylabel("mAP@0.5")
     ax.set_title("mAP@0.5 x FPS — variantes FP16")
-    ax.legend(loc="lower right", fontsize=8)
+    ax.margins(x=0.15, y=0.15)
+    ax.legend(handles=handles, loc="lower right", fontsize=8)
     fig.tight_layout()
     fig.savefig(outpath, dpi=200)
     plt.close(fig)

@@ -6,18 +6,60 @@ medindo:
 
 Monta a tabela final de comparação (equivalente à Tabela 1 do artigo).
 
-python benchmark.py --quant-manifest results/checkpoints/quant_manifest.json \
+python src/evaluation/benchmark.py --quant-manifest results/checkpoints/quant_manifest.json \
     --data data/processed/data.yaml --out results/tables/table1_results.csv \
     --test-images-dir data/processed/images/test
 """
 
 import argparse
 import json
+import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
-from ultralytics import YOLO
+# ---- log automático em results/logs/ (tela + arquivo) ----------------------
+# Instalado antes de importar o ultralytics para que os avisos dele também
+# entrem no arquivo. A pasta pode ser trocada com --log-dir.
+ROOT = Path(__file__).resolve().parents[2]  # raiz do projeto (/workspace)
+
+
+class _Tee:
+    """Replica tudo que é escrito na tela também no arquivo de log."""
+
+    def __init__(self, stream, logfile):
+        self._stream, self._logfile = stream, logfile
+
+    def write(self, text):
+        self._stream.write(text)
+        self._logfile.write(text)
+        return len(text)
+
+    def flush(self):
+        self._stream.flush()
+        self._logfile.flush()
+
+    def __getattr__(self, name):  # isatty(), fileno(), encoding...
+        return getattr(self._stream, name)
+
+
+def _setup_log(prefix):
+    pre = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    pre.add_argument("--log-dir", default=str(ROOT / "results" / "logs"))
+    known, _ = pre.parse_known_args()
+    log_dir = Path(known.log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    path = log_dir / f"{prefix}_{datetime.now():%Y%m%d_%H%M%S}.log"
+    logfile = open(path, "w", encoding="utf-8", buffering=1)
+    sys.stdout = _Tee(sys.__stdout__, logfile)
+    sys.stderr = _Tee(sys.__stderr__, logfile)
+    return path
+
+
+LOG_PATH = _setup_log("benchmark")
+
+import pandas as pd  # noqa: E402
+from ultralytics import YOLO  # noqa: E402
 
 FPS_THRESHOLD = 60
 
@@ -40,7 +82,7 @@ def evaluate_metrics(model: YOLO, data_yaml: str, imgsz=640, device="0"):
 def parse_model_key(model_key: str):
     arch_raw, variant_raw = model_key.split("_")
     arch_display = arch_raw.replace("yolov", "YOLOv")
-    variant_display = {"n": "Nano (n)", "m": "Medium (m)", "xl": "Extra Large (xl)"}[variant_raw]
+    variant_display = {"n": "Nano (n)", "m": "Medium (m)"}[variant_raw]
     return arch_display, variant_display
 
 def main():
@@ -52,6 +94,8 @@ def main():
     parser.add_argument("--n-runs", type=int, default=100)
     parser.add_argument("--device", default="0", help="id da GPU de inferência")
     parser.add_argument("--test-images-dir", required=True)
+    parser.add_argument("--log-dir", default=str(ROOT / "results" / "logs"),
+                        help="pasta onde o log desta execução é salvo")
     args = parser.parse_args()
 
     with open(args.quant_manifest) as f:
@@ -89,6 +133,7 @@ def main():
 
     print(f"\nresultados salvos em: {args.out}")
     print(df.to_string(index=False))
+    print(f"\nlog desta execução: {LOG_PATH}")
 
 if __name__ == "__main__":
     main()
