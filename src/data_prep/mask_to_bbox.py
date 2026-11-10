@@ -12,6 +12,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import cv2
 
 BINARY_THRESHOLD = 127
@@ -41,13 +42,24 @@ def find_polyp_contours(binary_mask):
     return [c for c in contours if cv2.contourArea(c) >= MIN_CONTOUR_AREA_PX]
 
 
-def mask_to_bbox(mask_path: Path) -> list[PixelBBox]:
-    # Retorna uma PixelBBox por região da máscara, lista vazia se a máscara não abrir
+def mask_to_bbox(mask_path: Path, whole_mask: bool = False) -> list[PixelBBox]:
+    # whole_mask=False (projeto): uma caixa por contorno externo, com filtro de área.
+    # whole_mask=True (baseline): uma única caixa com os extremos de todos os
+    # pixels da máscara, sem filtro, como descrito no artigo.
     binary = load_binary_mask(mask_path)
     if binary is None:
         return []
 
     img_h, img_w = binary.shape[:2]
+
+    if whole_mask:
+        ys, xs = np.nonzero(binary)
+        if xs.size == 0:
+            return []
+        x1, x2 = int(xs.min()), int(xs.max()) + 1  # +1 para bater com boundingRect (x + w)
+        y1, y2 = int(ys.min()), int(ys.max()) + 1
+        return [PixelBBox(x1=x1, y1=y1, x2=x2, y2=y2, img_w=img_w, img_h=img_h)]
+
     boxes = []
     for contour in find_polyp_contours(binary):
         x, y, w, h = cv2.boundingRect(contour)
