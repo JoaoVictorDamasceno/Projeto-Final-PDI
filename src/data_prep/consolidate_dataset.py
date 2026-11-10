@@ -8,17 +8,30 @@ Fontes de bbox:
 
 Split 80/10/10 por imagem, com seed fixa.
 
-Filtragem de bboxes:
-    CVC / ETIS    -> nenhuma aqui; o ruído de máscara é tratado em mask_to_bbox()
-    HyperKvasir   -> uma bbox 100% contida em outra bbox da mesma imagem é
-                     descartada (só a menor); a imagem e as demais boxes são mantidas
+Modos (a saída vai para <out>/<modo>):
+
+    projeto (default)
+        CVC / ETIS    -> uma bbox por contorno externo da máscara, com filtro de
+                         área mínima (ruído de máscara tratado em mask_to_bbox())
+        HyperKvasir   -> uma bbox 100% contida em outra bbox da mesma imagem é
+                         descartada (só a menor); a imagem e as demais boxes são mantidas
+
+    baseline (--baseline) — reprodução fiel ao artigo, sem nenhum filtro
+        CVC / ETIS    -> UMA bbox por imagem, com os extremos de toda a máscara
+                         (interpretação adotada do artigo, Seção 3.1)
+        HyperKvasir   -> todas as bboxes do JSON (label "polyp"), sem filtro de contenção
+
+O split não depende do modo: as mesmas 1808 imagens entram nos dois, na mesma
+ordem e com a mesma seed, então a divisão treino/val/teste é idêntica.
 
 Uso:
     python src/data_prep/consolidate_dataset.py \
-    --hyperkvasir data/raw/HyperKvasir \
-        --cvc data/raw/CVC-ClinicDB \
-        --etis data/raw/ETIS-LaribPolypDB \
-    --out data/processed
+        --hyperkvasir data/raw/HyperKvasir \
+        --cvc-clinicdb data/raw/CVC-ClinicDB \
+        --etis-larib data/raw/ETIS-LaribPolypDB \
+        --out data/processed [--baseline]
+
+Saída: data/processed/projeto  ou  data/processed/baseline  (com --baseline)
 """
 
 import argparse
@@ -37,6 +50,7 @@ SEED = 42
 SPLIT_RATIOS = {"train": 0.8, "val": 0.1, "test": 0.1}
 CLASSES = ["polyp"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".bmp"}
+MODE_MARKER = "mode.txt"  # gravado na saída; lido pelo validate_dataset.py
 
 PixelBox = tuple[float, float, float, float]  # xmin, ymin, xmax, ymax
 
@@ -114,7 +128,7 @@ def load_hyperkvasir_annotations(json_path: Path) -> dict:
 
 
 def hyperkvasir_boxes_for_image(annotations: dict, img_id: str, img_w: int, img_h: int,
-                                audit: Audit) -> list[YoloBox]:
+                                audit: Audit, drop_contained: bool = True) -> list[YoloBox]:
     entry = annotations.get(img_id)
     if not entry or not entry.get("bbox"):
         return []
@@ -125,7 +139,12 @@ def hyperkvasir_boxes_for_image(annotations: dict, img_id: str, img_w: int, img_
         if box.get("label") == "polyp"
     ]
 
-    kept, dropped = drop_contained_boxes(pixel_boxes)
+    # baseline: as caixas do JSON ficam como vieram
+    if drop_contained:
+        kept, dropped = drop_contained_boxes(pixel_boxes)
+    else:
+        kept, dropped = pixel_boxes, []
+
     for box in dropped:
         print(f"[filtro] bbox contida em outra descartada em hyperkvasir/{img_id}: área={pixel_area(*box):.0f}px²")
     if dropped:
@@ -141,7 +160,7 @@ def hyperkvasir_boxes_for_image(annotations: dict, img_id: str, img_w: int, img_
     return boxes
 
 
-def collect_hyperkvasir(root: Path, audit: Audit) -> list[Sample]:
+def collect_hyperkvasir(root: Path, audit: Audit, drop_contained: bool = True) -> list[Sample]:
     img_dir = root / "images"
     json_path = root / "bounding-boxes.json"
 
@@ -164,7 +183,7 @@ def collect_hyperkvasir(root: Path, audit: Audit) -> list[Sample]:
         analyzed += 1
         h, w = img.shape[:2]
 
-        boxes = hyperkvasir_boxes_for_image(annotations, img_path.stem, w, h, audit)
+        boxes = hyperkvasir_boxes_for_image(annotations, img_path.stem, w, h, audit, drop_contained)
         if boxes:
             samples.append(Sample(img_path, boxes, "hyperkvasir"))
 
@@ -177,14 +196,14 @@ def find_matching_mask(img_path: Path, mask_dir: Path) -> Path | None:
     if same_name.exists():
         return same_name
 
-    # a extensão da máscara pode diferir da imagem (ex.: .png vs .tif) 
+    # a extensão da máscara pode diferir da imagem (ex.: .png vs .tif)
     candidates = list(mask_dir.glob(f"{img_path.stem}.*"))
     return candidates[0] if candidates else None
 
 
-def mask_boxes_for_image(mask_path: Path) -> list[YoloBox]:
+def mask_boxes_for_image(mask_path: Path, whole_mask: bool = False) -> list[YoloBox]:
     boxes = []
-    for pixel_box in mask_to_bbox(mask_path):
+    for pixel_box in mask_to_bbox(mask_path, whole_mask=whole_mask):
         yolo_box = pixel_bbox_to_yolo(
             pixel_box.x1, pixel_box.y1, pixel_box.x2, pixel_box.y2,
             pixel_box.img_w, pixel_box.img_h,
@@ -198,7 +217,7 @@ def mask_boxes_for_image(mask_path: Path) -> list[YoloBox]:
 
 
 def collect_mask_based(root: Path, source_name: str, img_folder: str, mask_folder: str,
-                       audit: Audit) -> list[Sample]:
+                       audit: Audit, whole_mask: bool = False) -> list[Sample]:
     img_dir = root / img_folder
     mask_dir = root / mask_folder
 
@@ -218,7 +237,7 @@ def collect_mask_based(root: Path, source_name: str, img_folder: str, mask_folde
             continue
         analyzed += 1
 
-        boxes = mask_boxes_for_image(mask_path)
+        boxes = mask_boxes_for_image(mask_path, whole_mask)
         if boxes:
             samples.append(Sample(img_path, boxes, source_name))
 
@@ -227,17 +246,19 @@ def collect_mask_based(root: Path, source_name: str, img_folder: str, mask_folde
 
 
 def collect_all_samples(hyperkvasir_dir: Path, cvc_dir: Path, etis_dir: Path,
-                        audit: Audit) -> dict[str, list[Sample]]:
+                        audit: Audit, baseline: bool = False) -> dict[str, list[Sample]]:
     return {
-        "hyperkvasir": collect_hyperkvasir(hyperkvasir_dir, audit),
-        "cvcclinicdb": collect_mask_based(cvc_dir, "cvcclinicdb", "PNG/Original", "PNG/Ground Truth", audit),
-        "etislarib": collect_mask_based(etis_dir, "etislarib", "images", "masks", audit),
+        "hyperkvasir": collect_hyperkvasir(hyperkvasir_dir, audit, drop_contained=not baseline),
+        "cvcclinicdb": collect_mask_based(cvc_dir, "cvcclinicdb", "PNG/Original", "PNG/Ground Truth",
+                                          audit, whole_mask=baseline),
+        "etislarib": collect_mask_based(etis_dir, "etislarib", "images", "masks",
+                                        audit, whole_mask=baseline),
     }
 
 
 def split_dataset(samples: list[Sample], ratios: dict, seed: int) -> dict[str, list[Sample]]:
     shuffled = samples.copy()
-    random.Random(seed).shuffle(shuffled) 
+    random.Random(seed).shuffle(shuffled)
 
     n = len(shuffled)
     # round() em vez de int(): com 1808 imagens dá 1446/181/181 (como no artigo);
@@ -288,9 +309,9 @@ def write_data_yaml(out_root: Path) -> Path:
     return yaml_path
 
 
-def print_final_summary(samples_by_source: dict[str, list[Sample]], audit: Audit) -> None:
+def print_final_summary(samples_by_source: dict[str, list[Sample]], audit: Audit, mode: str) -> None:
     print("\n" + "=" * 60)
-    print("RESUMO FINAL")
+    print(f"RESUMO FINAL (modo: {mode})")
     print("=" * 60)
 
     total_analyzed = sum(audit.images_analyzed.values())
@@ -314,16 +335,23 @@ def parse_args():
     parser.add_argument("--hyperkvasir", required=True)
     parser.add_argument("--cvc-clinicdb", required=True)
     parser.add_argument("--etis-larib", required=True)
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--out", required=True,
+                        help="pasta base; a saída vai para <out>/<modo>")
+    parser.add_argument("--baseline", action="store_true",
+                        help="reprodução fiel ao artigo: caixa única pela máscara inteira "
+                             "(CVC/ETIS) e HyperKvasir sem filtro de contenção")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    mode = "baseline" if args.baseline else "projeto"
+    print(f"=== MODO: {mode} ===")
 
     audit = Audit()
     samples_by_source = collect_all_samples(
-        Path(args.hyperkvasir), Path(args.cvc_clinicdb), Path(args.etis_larib), audit
+        Path(args.hyperkvasir), Path(args.cvc_clinicdb), Path(args.etis_larib),
+        audit, baseline=args.baseline,
     )
     for source, samples in samples_by_source.items():
         print(f"{source}: {len(samples)} imagens coletadas")
@@ -334,17 +362,19 @@ def main():
 
     splits = split_dataset(all_samples, SPLIT_RATIOS, SEED)
 
-    out_root = Path(args.out)
+    out_root = Path(args.out) / mode
+    out_root.mkdir(parents=True, exist_ok=True)
     clean_output(out_root)
+    (out_root / MODE_MARKER).write_text(mode)
     for split_name, split_samples in splits.items():
         write_split(split_samples, split_name, out_root)
         print(f"{split_name}: {len(split_samples)} imagens")
 
     yaml_path = write_data_yaml(out_root)
 
-    print_final_summary(samples_by_source, audit)
+    print_final_summary(samples_by_source, audit, mode)
 
-    print(f"\nDataset unificado e pronto em: {out_root}")
+    print(f"\nDataset unificado ({mode}) e pronto em: {out_root}")
     print(f"Arquivo de configuração para o YOLO: {yaml_path}")
 
 
