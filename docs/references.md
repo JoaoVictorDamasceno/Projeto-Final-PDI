@@ -18,34 +18,36 @@ de reuso).
 
 ## O que o projeto herda do artigo
 
-| Item                                                       | Artigo      | Onde está no projeto                                |
-| ---------------------------------------------------------- | ----------- | --------------------------------------------------- |
-| Fontes de dados e total de 1.808 imagens únicas            | Seção 3.1   | `consolidate_dataset.py`, `validate_dataset.py`     |
-| Split 80/10/10 por imagem: 1446 / 181 / 181                | Seção 3.1   | `consolidate_dataset.py` (`SPLIT_RATIOS`)           |
-| Pesos pré-treinados no COCO e fine-tuning                  | Seção 3.2   | `train_yolo.py` (`MODEL_MAP`)                       |
-| Variantes n, m, xl; YOLOv9 como t, m, e                    | 3.2, nota 1 | `train_yolo.py` (`MODEL_MAP`)                       |
-| 640×640, 100 épocas, batch 16, Adam (lr 1e-3), cosine      | Seção 3.3   | `train_yolo.py` (`TRAIN_HPARAMS`)                   |
-| Quantização FP16 via TensorRT, modelo base mantido à parte | Seção 3.3   | `quantize_tensorrt.py`                              |
-| FPS = imagens processadas / tempo total de execução        | Seção 3.4   | `benchmark.py` (`measure_fps`)                      |
-| Limiar de 60 FPS (orçamento de 100 ms, Kader et al. 2026)  | Intro, 3.4  | `benchmark.py`, `plot_results.py` (`FPS_THRESHOLD`) |
-| Precisão, Recall e mAP@0.5 com IoU ≥ 0.5                   | Seção 3.4   | `benchmark.py` (`evaluate_metrics`)                 |
+| Item                                                       | Artigo      | Onde está no projeto                                                    |
+| ---------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| Fontes de dados e total de 1.808 imagens únicas            | Seção 3.1   | `consolidate_dataset.py`, `validate_dataset.py`                         |
+| Split 80/10/10 por imagem: 1446 / 181 / 181                | Seção 3.1   | `consolidate_dataset.py` (`SPLIT_RATIOS`)                               |
+| Pesos pré-treinados no COCO e fine-tuning                  | Seção 3.2   | `train_yolo.py` (`MODEL_MAP`)                                           |
+| Variantes n, m, xl; YOLOv9 como t, m, e                    | 3.2, nota 1 | `train_yolo.py` (`MODEL_MAP`)                                           |
+| 640×640, 100 épocas, batch 16, Adam (lr 1e-3), cosine      | Seção 3.3   | `train_yolo.py` (`TRAIN_HPARAMS`)                                       |
+| Quantização FP16 via TensorRT, modelo base mantido à parte | Seção 3.3   | `quantize_tensorrt.py`                                                  |
+| FPS = imagens processadas / tempo total de execução        | Seção 3.4   | `benchmark.py` e `benchmark_mem.py` (`measure_fps`); ver abaixo         |
+| Limiar de 60 FPS (orçamento de 100 ms, Kader et al. 2026)  | Intro, 3.4  | `benchmark.py`, `benchmark_mem.py`, `plot_results.py` (`FPS_THRESHOLD`) |
+| Precisão, Recall e mAP@0.5 com IoU ≥ 0.5                   | Seção 3.4   | `benchmark.py` (`evaluate_metrics`)                                     |
 
 ## Onde o projeto diverge ou o artigo não especifica
 
-- **Geração das caixas (CVC-ClinicDB e ETIS-Larib).** O artigo diz que as caixas
-  vêm das coordenadas extremas de cada máscara. O projeto gera uma caixa por
-  contorno externo da máscara (`mask_to_bbox.py`), com
-  `MIN_CONTOUR_AREA_PX = 2`. Ver `docs/decisions_log.md`, entrada 004.
-- **Tratamento de ruído.** O artigo não descreve filtragem de caixas. O projeto
-  aplica o filtro de contenção no HyperKvasir (entrada 003) e o filtro de
-  contornos nas máscaras (entrada 004). O total de 1917 caixas é do projeto; o
-  artigo não informa esse número.
-- **Parâmetros de treino e exportação não informados.** `seed=42`,
-  `patience=0` (sem early stopping), `workspace=4` e `simplify=True` são
-  escolhas do projeto. As versões de Ultralytics, TensorRT e CUDA também não
-  constam no artigo, que cita apenas o TensorRT Developer Guide 10.0.1.
-- **FPS depende do hardware.** O artigo mediu em uma RTX 3070. Os valores só são
-  comparáveis se o benchmark rodar em GPU equivalente.
+Status:
+**baseline fiel** = o modo `baseline` segue o artigo neste ponto;
+**variante do projeto** = só o modo `projeto` diverge;
+**não especificado** = o artigo não informa, e o projeto fixou um valor nos dois modos;
+**interpretação** = o artigo é ambíguo e o projeto adotou uma leitura.
+
+| Ponto                               | O que o artigo diz                                                                 | O que o projeto faz                                                                                                                        | Status                                              |
+| ----------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Caixas do CVC-ClinicDB e ETIS-Larib | Coordenadas extremas de cada máscara                                               | `baseline`: uma caixa pelos extremos de toda a máscara. `projeto`: uma caixa por contorno externo, `MIN_CONTOUR_AREA_PX = 2` (entrada 004) | baseline fiel (interpretação) / variante do projeto |
+| Caixas do HyperKvasir               | Usa as caixas fornecidas                                                           | `baseline`: todas as caixas do JSON. `projeto`: descarta a caixa 100% contida em outra (entrada 003)                                       | baseline fiel / variante do projeto                 |
+| Filtragem de ruído                  | Não descreve                                                                       | Só no modo `projeto` (entradas 003 e 004)                                                                                                  | variante do projeto                                 |
+| Total de caixas                     | Não informa                                                                        | `baseline`: 1879. `projeto`: 1917                                                                                                          | não especificado                                    |
+| Medição do FPS                      | Imagens processadas / tempo total de execução; 60 FPS como requisito de inferência | Duas medições: `benchmark.py` (inclui leitura do disco) e `benchmark_mem.py` (imagens em memória), entrada 006                             | interpretação                                       |
+| Parâmetros de treino e exportação   | Não informa `seed`, `patience`, `workspace`, `simplify`                            | `seed=42`, `patience=0` (sem early stopping), `workspace=4`, `simplify=True`                                                               | não especificado                                    |
+| Versões de software                 | Cita apenas o TensorRT Developer Guide 10.0.1                                      | Versões de Ultralytics, TensorRT e CUDA a registrar (ver "Ambiente do projeto")                                                            | não especificado                                    |
+| Hardware                            | Treino numa RTX 4090; inferência numa RTX 3070                                     | Hardware de treino e de inferência inferiores aos do artigo                                                                                | diferença de ambiente                               |
 
 ## Referências do artigo usadas diretamente
 
