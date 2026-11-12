@@ -125,17 +125,17 @@ em volta do pólipo.
 ```bash
 # modo projeto (padrão) -> data/processed/projeto
 python src/data_prep/consolidate_dataset.py \
-    --hyperkvasir data/raw/hyperkvasir \
-    --cvc-clinicdb data/raw/cvc_clinicdb \
-    --etis-larib data/raw/etis_larib \
+    --hyperkvasir data/raw/HyperKvasir \
+    --cvc-clinicdb data/raw/CVC-ClinicDB \
+    --etis-larib data/raw/ETIS-LaribPolypDB \
     --out data/processed
 python src/data_prep/validate_dataset.py --data-dir data/processed/projeto
 
 # modo baseline -> data/processed/baseline
 python src/data_prep/consolidate_dataset.py \
-    --hyperkvasir data/raw/hyperkvasir \
-    --cvc-clinicdb data/raw/cvc_clinicdb \
-    --etis-larib data/raw/etis_larib \
+    --hyperkvasir data/raw/HyperKvasir \
+    --cvc-clinicdb data/raw/CVC-ClinicDB \
+    --etis-larib data/raw/ETIS-LaribPolypDB \
     --out data/processed --baseline
 python src/data_prep/validate_dataset.py --data-dir data/processed/baseline --baseline
 ```
@@ -163,16 +163,16 @@ Outras ferramentas de auditoria (independentes do modo):
 # inventário bruto (sem filtro de área/label) das fontes originais, para
 # identificar imagens com mais de 1 pólipo e triá-las visualmente
 python src/data_prep/scan_multibox_sources.py \
-    --hyperkvasir-dir data/raw/hyperkvasir \
-    --cvc-dir data/raw/cvc_clinicdb \
-    --etis-dir data/raw/etis_larib \
+    --hyperkvasir-dir data/raw/HyperKvasir \
+    --cvc-dir data/raw/CVC-ClinicDB \
+    --etis-dir data/raw/ETIS-LaribPolypDB \
     --out-logs-dir results/audit \
     --samples-dir data/samples/inventario_bruto
 
 # verificação do filtro de ruído do mask_to_bbox no CVC e no ETIS (modo projeto)
 python src/data_prep/verify_mask_filter.py \
-    --cvc-dir data/raw/cvc_clinicdb \
-    --etis-dir data/raw/etis_larib \
+    --cvc-dir data/raw/CVC-ClinicDB \
+    --etis-dir data/raw/ETIS-LaribPolypDB \
     --samples-dir data/samples/mask_to_bbox_filtrado
 ```
 
@@ -188,16 +188,16 @@ múltiplos pólipos estão em `docs/decisions_log.md`.
 ```bash
 # modo projeto
 python pipeline.py \
-    --hyperkvasir data/raw/hyperkvasir \
-    --cvc-clinicdb data/raw/cvc_clinicdb \
-    --etis-larib data/raw/etis_larib \
+    --hyperkvasir data/raw/HyperKvasir \
+    --cvc-clinicdb data/raw/CVC-ClinicDB \
+    --etis-larib data/raw/ETIS-LaribPolypDB \
     --device 0
 
 # modo baseline (mesma linha, mais a flag)
 python pipeline.py \
-    --hyperkvasir data/raw/hyperkvasir \
-    --cvc-clinicdb data/raw/cvc_clinicdb \
-    --etis-larib data/raw/etis_larib \
+    --hyperkvasir data/raw/HyperKvasir \
+    --cvc-clinicdb data/raw/CVC-ClinicDB \
+    --etis-larib data/raw/ETIS-LaribPolypDB \
     --device 0 --baseline
 ```
 
